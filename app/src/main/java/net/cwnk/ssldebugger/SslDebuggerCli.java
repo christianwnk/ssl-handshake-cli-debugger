@@ -15,7 +15,7 @@ import java.util.concurrent.Callable;
 @Command(
         name = "ssl-debugger",
         mixinStandardHelpOptions = true,
-        version = "0.1",
+        version = "0.2",
         description = "Diagnoses SSL/TLS handshake failures by showing the full handshake trace and a human-readable summary."
 )
 public class SslDebuggerCli implements Callable<Integer> {
