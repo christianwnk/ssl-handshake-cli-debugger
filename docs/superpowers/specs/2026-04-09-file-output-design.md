@@ -30,7 +30,7 @@ Implemented using picocli's `arity = "0..1"` with a `fallbackValue` sentinel to 
 
 ### ResultPrinter refactor
 
-`ResultPrinter` is refactored to accept a `PrintStream out` parameter (injected via constructor or method parameter) instead of using `System.out` directly. All `System.out.println` / `System.out.printf` calls become `out.println` / `out.printf`.
+`ResultPrinter` is refactored to accept a `PrintStream out` parameter added to the `print()` method signature instead of using `System.out` directly. All `System.out.println` / `System.out.printf` calls become `out.println` / `out.printf`.
 
 ### TeeOutputStream
 
