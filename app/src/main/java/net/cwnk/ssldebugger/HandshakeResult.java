@@ -19,4 +19,8 @@ public record HandshakeResult(
     public static HandshakeResult failure(String host, int port, Exception exception) {
         return new HandshakeResult(host, port, false, null, null, null, exception);
     }
+
+    public static HandshakeResult failure(String host, int port, Exception exception, X509Certificate[] peerCertificates) {
+        return new HandshakeResult(host, port, false, null, null, peerCertificates, exception);
+    }
 }

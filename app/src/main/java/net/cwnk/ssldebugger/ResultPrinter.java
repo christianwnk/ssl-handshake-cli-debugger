@@ -10,14 +10,14 @@ import java.util.List;
 public class ResultPrinter {
 
     public void print(HandshakeResult result, String rawJsseOutput, List<HandshakeStep> steps, boolean raw) {
-        printHandshakeTrace(steps, raw, rawJsseOutput);
+        printHandshakeTrace(result, steps);
         if (raw) {
             printRawOutput(rawJsseOutput);
         }
         printSummary(result);
     }
 
-    private void printHandshakeTrace(List<HandshakeStep> steps, boolean raw, String rawJsseOutput) {
+    private void printHandshakeTrace(HandshakeResult result, List<HandshakeStep> steps) {
         System.out.println();
         System.out.println("=== TLS Handshake Trace ===");
         System.out.println();
@@ -28,12 +28,52 @@ public class ResultPrinter {
             for (int i = 0; i < steps.size(); i++) {
                 HandshakeStep step = steps.get(i);
                 System.out.printf("[%d] %s%n", i + 1, step.name());
-                for (String detail : step.details()) {
-                    System.out.println("    " + detail);
+                if ("Certificate".equals(step.name())) {
+                    printCertificateChain(result.peerCertificates());
+                } else {
+                    for (String detail : step.details()) {
+                        System.out.println("    " + detail);
+                    }
                 }
                 System.out.println();
             }
         }
+    }
+
+    private void printCertificateChain(X509Certificate[] certs) {
+        if (certs == null || certs.length == 0) {
+            System.out.println("    (no certificate data available)");
+            return;
+        }
+        for (int i = 0; i < certs.length; i++) {
+            X509Certificate cert = certs[i];
+            String role = certRole(cert, i, certs.length);
+            System.out.printf("    [%d] %s%n", i + 1, role);
+            System.out.println("        Subject : " + cert.getSubjectX500Principal().getName());
+            System.out.println("        Issuer  : " + cert.getIssuerX500Principal().getName());
+            System.out.println("        Serial  : " + formatSerial(cert));
+            LocalDate notBefore = cert.getNotBefore().toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+            LocalDate notAfter  = cert.getNotAfter().toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+            System.out.println("        Valid   : " + notBefore + " → " + notAfter);
+        }
+    }
+
+    private String certRole(X509Certificate cert, int index, int total) {
+        if (index == 0) return "Server Certificate";
+        boolean selfSigned = cert.getSubjectX500Principal().equals(cert.getIssuerX500Principal());
+        if (selfSigned) return "Root CA";
+        return "Intermediate CA";
+    }
+
+    private String formatSerial(X509Certificate cert) {
+        String hex = cert.getSerialNumber().toString(16).toUpperCase();
+        if (hex.length() % 2 != 0) hex = "0" + hex;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < hex.length(); i += 2) {
+            if (!sb.isEmpty()) sb.append(':');
+            sb.append(hex, i, i + 2);
+        }
+        return sb.toString();
     }
 
     private void printRawOutput(String rawJsseOutput) {

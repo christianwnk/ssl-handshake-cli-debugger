@@ -3,6 +3,8 @@ package net.cwnk.ssldebugger;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509TrustManager;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
@@ -15,14 +17,20 @@ public class SslHandshakeProbe {
     private static final int TIMEOUT_MS = 10_000;
 
     public HandshakeResult probe(String host, int port, String proxy, boolean insecure) {
+        CapturingTrustManager capturingTm = null;
         try {
-            SSLContext sslContext;
+            X509TrustManager delegate;
             if (insecure) {
-                sslContext = SSLContext.getInstance("TLS");
-                sslContext.init(null, new TrustManager[]{new TrustAllTrustManager()}, null);
+                delegate = new TrustAllTrustManager();
             } else {
-                sslContext = SSLContext.getDefault();
+                TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+                tmf.init((java.security.KeyStore) null);
+                delegate = (javax.net.ssl.X509TrustManager) tmf.getTrustManagers()[0];
             }
+            capturingTm = new CapturingTrustManager(delegate);
+
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, new TrustManager[]{capturingTm}, null);
 
             SSLSocket sslSocket;
             if (proxy != null && !proxy.isBlank()) {
@@ -42,7 +50,8 @@ public class SslHandshakeProbe {
             return result;
 
         } catch (Exception e) {
-            return HandshakeResult.failure(host, port, e);
+            X509Certificate[] captured = capturingTm != null ? capturingTm.getCapturedChain() : null;
+            return HandshakeResult.failure(host, port, e, captured);
         }
     }
 
@@ -66,7 +75,6 @@ public class SslHandshakeProbe {
             tunnel.close();
             throw new RuntimeException("Proxy CONNECT failed: " + responseLine);
         }
-        // Drain headers
         String line;
         while ((line = in.readLine()) != null && !line.isEmpty()) {
             // consume remaining headers
