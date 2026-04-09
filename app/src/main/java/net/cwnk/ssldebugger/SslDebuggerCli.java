@@ -17,8 +17,8 @@ public class SslDebuggerCli implements Callable<Integer> {
     @Option(names = {"--host"}, required = true, description = "Target hostname")
     private String host;
 
-    @Option(names = {"--port"}, required = true, description = "Target port")
-    private int port;
+    @Option(names = {"--port"}, description = "Target port (default: 443)")
+    private int port = 443;
 
     @Option(names = {"--proxy"}, description = "HTTP proxy as host:port")
     private String proxy;
