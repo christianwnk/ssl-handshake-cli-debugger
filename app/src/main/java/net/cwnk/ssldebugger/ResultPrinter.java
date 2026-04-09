@@ -1,5 +1,6 @@
 package net.cwnk.ssldebugger;
 
+import java.io.PrintStream;
 import java.net.SocketTimeoutException;
 import java.security.cert.X509Certificate;
 import java.time.LocalDate;
@@ -9,52 +10,52 @@ import java.util.List;
 
 public class ResultPrinter {
 
-    public void print(HandshakeResult result, String rawJsseOutput, List<HandshakeStep> steps, boolean raw) {
-        printHandshakeTrace(result, steps);
+    public void print(HandshakeResult result, String rawJsseOutput, List<HandshakeStep> steps, boolean raw, PrintStream out) {
+        printHandshakeTrace(result, steps, out);
         if (raw) {
-            printRawOutput(rawJsseOutput);
+            printRawOutput(rawJsseOutput, out);
         }
-        printSummary(result);
+        printSummary(result, out);
     }
 
-    private void printHandshakeTrace(HandshakeResult result, List<HandshakeStep> steps) {
-        System.out.println();
-        System.out.println("=== TLS Handshake Trace ===");
-        System.out.println();
+    private void printHandshakeTrace(HandshakeResult result, List<HandshakeStep> steps, PrintStream out) {
+        out.println();
+        out.println("=== TLS Handshake Trace ===");
+        out.println();
 
         if (steps.isEmpty()) {
-            System.out.println("(Handshake steps could not be parsed — use --raw to see full output)");
+            out.println("(Handshake steps could not be parsed — use --raw to see full output)");
         } else {
             for (int i = 0; i < steps.size(); i++) {
                 HandshakeStep step = steps.get(i);
-                System.out.printf("[%d] %s%n", i + 1, step.name());
+                out.printf("[%d] %s%n", i + 1, step.name());
                 if ("Certificate".equals(step.name())) {
-                    printCertificateChain(result.peerCertificates());
+                    printCertificateChain(result.peerCertificates(), out);
                 } else {
                     for (String detail : step.details()) {
-                        System.out.println("    " + detail);
+                        out.println("    " + detail);
                     }
                 }
-                System.out.println();
+                out.println();
             }
         }
     }
 
-    private void printCertificateChain(X509Certificate[] certs) {
+    private void printCertificateChain(X509Certificate[] certs, PrintStream out) {
         if (certs == null || certs.length == 0) {
-            System.out.println("    (no certificate data available)");
+            out.println("    (no certificate data available)");
             return;
         }
         for (int i = 0; i < certs.length; i++) {
             X509Certificate cert = certs[i];
             String role = certRole(cert, i, certs.length);
-            System.out.printf("    [%d] %s%n", i + 1, role);
-            System.out.println("        Subject : " + cert.getSubjectX500Principal().getName());
-            System.out.println("        Issuer  : " + cert.getIssuerX500Principal().getName());
-            System.out.println("        Serial  : " + formatSerial(cert));
+            out.printf("    [%d] %s%n", i + 1, role);
+            out.println("        Subject : " + cert.getSubjectX500Principal().getName());
+            out.println("        Issuer  : " + cert.getIssuerX500Principal().getName());
+            out.println("        Serial  : " + formatSerial(cert));
             LocalDate notBefore = cert.getNotBefore().toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
             LocalDate notAfter  = cert.getNotAfter().toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-            System.out.println("        Valid   : " + notBefore + " → " + notAfter);
+            out.println("        Valid   : " + notBefore + " → " + notAfter);
         }
     }
 
@@ -76,21 +77,21 @@ public class ResultPrinter {
         return sb.toString();
     }
 
-    private void printRawOutput(String rawJsseOutput) {
-        System.out.println("=== Raw JSSE Debug Output ===");
-        System.out.println();
-        System.out.println(rawJsseOutput);
-        System.out.println();
+    private void printRawOutput(String rawJsseOutput, PrintStream out) {
+        out.println("=== Raw JSSE Debug Output ===");
+        out.println();
+        out.println(rawJsseOutput);
+        out.println();
     }
 
-    private void printSummary(HandshakeResult result) {
-        System.out.println("=== Summary ===");
-        System.out.printf("%-13s: %s%n", "Host", result.host() + ":" + result.port());
+    private void printSummary(HandshakeResult result, PrintStream out) {
+        out.println("=== Summary ===");
+        out.printf("%-13s: %s%n", "Host", result.host() + ":" + result.port());
 
         if (result.success()) {
-            System.out.printf("%-13s: SUCCESS%n", "Status");
-            System.out.printf("%-13s: %s%n", "Protocol", result.protocol());
-            System.out.printf("%-13s: %s%n", "Cipher Suite", result.cipherSuite());
+            out.printf("%-13s: SUCCESS%n", "Status");
+            out.printf("%-13s: %s%n", "Protocol", result.protocol());
+            out.printf("%-13s: %s%n", "Cipher Suite", result.cipherSuite());
 
             X509Certificate[] certs = result.peerCertificates();
             if (certs != null && certs.length > 0) {
@@ -98,23 +99,23 @@ public class ResultPrinter {
                 String subject = leaf.getSubjectX500Principal().getName();
                 LocalDate notAfter = leaf.getNotAfter().toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
                 long daysRemaining = ChronoUnit.DAYS.between(LocalDate.now(), notAfter);
-                System.out.printf("%-13s: %s (valid until %s, %d days remaining)%n",
+                out.printf("%-13s: %s (valid until %s, %d days remaining)%n",
                         "Certificate", subject, notAfter, daysRemaining);
-                System.out.printf("%-13s: %d%n", "Chain depth", certs.length);
+                out.printf("%-13s: %d%n", "Chain depth", certs.length);
             }
         } else {
-            System.out.printf("%-13s: FAILED%n", "Status");
+            out.printf("%-13s: FAILED%n", "Status");
             Exception ex = result.exception();
             ErrorInfo info = classifyError(ex);
-            System.out.printf("%-13s: %s%n", "Error", info.message());
+            out.printf("%-13s: %s%n", "Error", info.message());
             if (info.detail() != null) {
-                System.out.printf("%-13s: %s%n", "Detail", info.detail());
+                out.printf("%-13s: %s%n", "Detail", info.detail());
             }
             if (info.hint() != null) {
-                System.out.printf("%-13s: %s%n", "Hint", info.hint());
+                out.printf("%-13s: %s%n", "Hint", info.hint());
             }
         }
-        System.out.println();
+        out.println();
     }
 
     private ErrorInfo classifyError(Exception ex) {

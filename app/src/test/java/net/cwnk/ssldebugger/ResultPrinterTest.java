@@ -13,22 +13,16 @@ class ResultPrinterTest {
 
     private final ResultPrinter printer = new ResultPrinter();
 
-    private String captureOutput(Runnable action) {
+    private String print(HandshakeResult result, String rawJsse, List<HandshakeStep> steps, boolean raw) {
         ByteArrayOutputStream buf = new ByteArrayOutputStream();
-        PrintStream old = System.out;
-        System.setOut(new PrintStream(buf, true, StandardCharsets.UTF_8));
-        try {
-            action.run();
-        } finally {
-            System.setOut(old);
-        }
+        printer.print(result, rawJsse, steps, raw, new PrintStream(buf, true, StandardCharsets.UTF_8));
         return buf.toString(StandardCharsets.UTF_8);
     }
 
     @Test
     void successSummaryContainsKeyFields() {
         HandshakeResult result = HandshakeResult.success("example.com", 443, "TLSv1.3", "TLS_AES_256_GCM_SHA384", null);
-        String output = captureOutput(() -> printer.print(result, "", List.of(), false));
+        String output = print(result, "", List.of(), false);
         assertTrue(output.contains("SUCCESS"));
         assertTrue(output.contains("example.com:443"));
         assertTrue(output.contains("TLSv1.3"));
@@ -38,7 +32,7 @@ class ResultPrinterTest {
     @Test
     void failureSummaryContainsFailedStatus() {
         HandshakeResult result = HandshakeResult.failure("badhost.example", 443, new RuntimeException("Connection refused"));
-        String output = captureOutput(() -> printer.print(result, "", List.of(), false));
+        String output = print(result, "", List.of(), false);
         assertTrue(output.contains("FAILED"));
         assertTrue(output.contains("badhost.example:443"));
     }
@@ -46,7 +40,7 @@ class ResultPrinterTest {
     @Test
     void rawOutputPrintedWhenFlagSet() {
         HandshakeResult result = HandshakeResult.success("example.com", 443, "TLSv1.3", "TLS_AES_256_GCM_SHA384", null);
-        String output = captureOutput(() -> printer.print(result, "raw jsse content here", List.of(), true));
+        String output = print(result, "raw jsse content here", List.of(), true);
         assertTrue(output.contains("Raw JSSE Debug Output"));
         assertTrue(output.contains("raw jsse content here"));
     }
@@ -54,7 +48,7 @@ class ResultPrinterTest {
     @Test
     void rawOutputNotPrintedWhenFlagNotSet() {
         HandshakeResult result = HandshakeResult.success("example.com", 443, "TLSv1.3", "TLS_AES_256_GCM_SHA384", null);
-        String output = captureOutput(() -> printer.print(result, "raw jsse content here", List.of(), false));
+        String output = print(result, "raw jsse content here", List.of(), false);
         assertFalse(output.contains("raw jsse content here"));
     }
 
@@ -65,7 +59,7 @@ class ResultPrinterTest {
                 new HandshakeStep("ClientHello", List.of("Offered protocols : TLSv1.3")),
                 new HandshakeStep("ServerHello", List.of("Selected protocol : TLSv1.3"))
         );
-        String output = captureOutput(() -> printer.print(result, "", steps, false));
+        String output = print(result, "", steps, false);
         assertTrue(output.contains("[1] ClientHello"));
         assertTrue(output.contains("[2] ServerHello"));
     }
@@ -74,7 +68,7 @@ class ResultPrinterTest {
     void expiredCertErrorHasHint() {
         HandshakeResult result = HandshakeResult.failure("example.com", 443,
                 new javax.net.ssl.SSLHandshakeException("certificate_expired"));
-        String output = captureOutput(() -> printer.print(result, "", List.of(), false));
+        String output = print(result, "", List.of(), false);
         assertTrue(output.contains("expired"));
         assertTrue(output.contains("--insecure"));
     }
