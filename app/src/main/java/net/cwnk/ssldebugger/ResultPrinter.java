@@ -1,0 +1,130 @@
+package net.cwnk.ssldebugger;
+
+import java.net.SocketTimeoutException;
+import java.security.cert.X509Certificate;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+
+public class ResultPrinter {
+
+    public void print(HandshakeResult result, String rawJsseOutput, List<HandshakeStep> steps, boolean raw) {
+        printHandshakeTrace(steps, raw, rawJsseOutput);
+        if (raw) {
+            printRawOutput(rawJsseOutput);
+        }
+        printSummary(result);
+    }
+
+    private void printHandshakeTrace(List<HandshakeStep> steps, boolean raw, String rawJsseOutput) {
+        System.out.println();
+        System.out.println("=== TLS Handshake Trace ===");
+        System.out.println();
+
+        if (steps.isEmpty()) {
+            System.out.println("(Handshake steps could not be parsed — use --raw to see full output)");
+        } else {
+            for (int i = 0; i < steps.size(); i++) {
+                HandshakeStep step = steps.get(i);
+                System.out.printf("[%d] %s%n", i + 1, step.name());
+                for (String detail : step.details()) {
+                    System.out.println("    " + detail);
+                }
+                System.out.println();
+            }
+        }
+    }
+
+    private void printRawOutput(String rawJsseOutput) {
+        System.out.println("=== Raw JSSE Debug Output ===");
+        System.out.println();
+        System.out.println(rawJsseOutput);
+        System.out.println();
+    }
+
+    private void printSummary(HandshakeResult result) {
+        System.out.println("=== Summary ===");
+        System.out.printf("%-13s: %s%n", "Host", result.host() + ":" + result.port());
+
+        if (result.success()) {
+            System.out.printf("%-13s: SUCCESS%n", "Status");
+            System.out.printf("%-13s: %s%n", "Protocol", result.protocol());
+            System.out.printf("%-13s: %s%n", "Cipher Suite", result.cipherSuite());
+
+            X509Certificate[] certs = result.peerCertificates();
+            if (certs != null && certs.length > 0) {
+                X509Certificate leaf = certs[0];
+                String subject = leaf.getSubjectX500Principal().getName();
+                LocalDate notAfter = leaf.getNotAfter().toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+                long daysRemaining = ChronoUnit.DAYS.between(LocalDate.now(), notAfter);
+                System.out.printf("%-13s: %s (valid until %s, %d days remaining)%n",
+                        "Certificate", subject, notAfter, daysRemaining);
+                System.out.printf("%-13s: %d%n", "Chain depth", certs.length);
+            }
+        } else {
+            System.out.printf("%-13s: FAILED%n", "Status");
+            Exception ex = result.exception();
+            ErrorInfo info = classifyError(ex);
+            System.out.printf("%-13s: %s%n", "Error", info.message());
+            if (info.detail() != null) {
+                System.out.printf("%-13s: %s%n", "Detail", info.detail());
+            }
+            if (info.hint() != null) {
+                System.out.printf("%-13s: %s%n", "Hint", info.hint());
+            }
+        }
+        System.out.println();
+    }
+
+    private ErrorInfo classifyError(Exception ex) {
+        if (ex == null) return new ErrorInfo("Unknown error", null, null);
+
+        String msg = ex.getMessage() != null ? ex.getMessage() : "";
+        Throwable cause = ex.getCause();
+        String causeMsg = cause != null && cause.getMessage() != null ? cause.getMessage() : "";
+        String combined = msg + " " + causeMsg;
+
+        if (combined.contains("certificate_expired") || combined.contains("NotAfter") || combined.contains("expired")) {
+            return new ErrorInfo("Certificate has expired",
+                    extractNotAfter(combined),
+                    "Use --insecure to skip certificate validation");
+        }
+        if (combined.contains("PKIX path") || combined.contains("unable to find valid certification path")) {
+            return new ErrorInfo("Untrusted certificate / unknown CA",
+                    "The server's certificate chain could not be verified against trusted CAs",
+                    "Use --insecure to skip validation, or import the CA certificate into your truststore");
+        }
+        if (combined.contains("No name matching") || combined.contains("No subject alternative")) {
+            return new ErrorInfo("Hostname mismatch",
+                    msg,
+                    "Check the certificate's Subject Alternative Names (SANs)");
+        }
+        if (combined.contains("no cipher suites in common") || combined.contains("no cipher")) {
+            return new ErrorInfo("No shared cipher suites",
+                    "Client and server could not agree on a common cipher suite",
+                    "The server may require legacy TLS configuration");
+        }
+        if (ex instanceof java.net.ConnectException || combined.contains("Connection refused")) {
+            return new ErrorInfo("Connection refused",
+                    "Could not connect to " + combined.replaceFirst(".*Connection refused.*", "").trim(),
+                    "Check host, port, and firewall settings");
+        }
+        if (ex instanceof SocketTimeoutException || combined.contains("timed out")) {
+            return new ErrorInfo("Connection timed out",
+                    null,
+                    "Check host reachability and network connectivity");
+        }
+        return new ErrorInfo(msg.isEmpty() ? ex.getClass().getSimpleName() : msg, null, null);
+    }
+
+    private String extractNotAfter(String text) {
+        int idx = text.indexOf("NotAfter:");
+        if (idx >= 0) {
+            return text.substring(idx, Math.min(text.length(), idx + 60)).trim();
+        }
+        return null;
+    }
+
+    private record ErrorInfo(String message, String detail, String hint) {}
+}

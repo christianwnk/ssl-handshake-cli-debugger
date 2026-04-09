@@ -1,0 +1,39 @@
+plugins {
+    id 'java'
+    id 'com.gradleup.shadow' version '8.3.5'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation libs.picocli
+
+    testImplementation libs.junit.jupiter
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class': 'net.cwnk.ssldebugger.SslDebuggerCli'
+    }
+}
+
+shadowJar {
+    archiveClassifier = ''
+    mergeServiceFiles()
+    manifest {
+        attributes 'Main-Class': 'net.cwnk.ssldebugger.SslDebuggerCli'
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

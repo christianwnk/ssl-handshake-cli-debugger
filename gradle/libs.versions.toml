@@ -1,0 +1,7 @@
+[versions]
+picocli = "4.7.6"
+junit-jupiter = "6.0.1"
+
+[libraries]
+picocli = { module = "info.picocli:picocli", version.ref = "picocli" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
