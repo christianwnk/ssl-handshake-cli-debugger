@@ -7,6 +7,7 @@ A Java CLI tool for diagnosing SSL/TLS handshake failures. It connects to a targ
 - Step-by-step handshake trace: ClientHello, ServerHello, Certificate, Finished
 - Human-readable summary for both success and failure (with error classification and fix hints)
 - Optional full raw JSSE debug dump (`--raw`)
+- Save output to a file in addition to stdout (`--output`)
 - Skip certificate validation (`--insecure`)
 - HTTP proxy support via CONNECT tunnel (`--proxy`)
 - Works with Java 17+ structured JSSE format and legacy Java 8–11 format
@@ -37,6 +38,7 @@ java -jar app/build/libs/ssl-handshake-debugger.jar --host <host> --port <port> 
 | `--proxy` | HTTP proxy as `host:port` |
 | `--insecure` | Skip certificate validation |
 | `--raw` | Also print the full raw JSSE debug stream |
+| `--output [<file>]` | Write output to a file in addition to stdout. If no filename is given, defaults to `ssl-debug-<host>-<timestamp>.txt` |
 | `--help` | Show usage |
 | `--version` | Show version |
 
@@ -101,6 +103,17 @@ java -jar app/build/libs/ssl-handshake-debugger.jar --host example.com --port 44
 java -jar app/build/libs/ssl-handshake-debugger.jar --host example.com --port 443 --raw
 ```
 
+**Save output to a file (explicit filename):**
+```bash
+java -jar app/build/libs/ssl-handshake-debugger.jar --host example.com --output result.txt
+```
+
+**Save output to a file (auto-generated filename):**
+```bash
+java -jar app/build/libs/ssl-handshake-debugger.jar --host example.com --output
+# writes to e.g. ssl-debug-example.com-20260410T143022.txt
+```
+
 ## Error Classification
 
 The tool recognises common SSL failure patterns and provides targeted hints:
@@ -120,6 +133,7 @@ The tool recognises common SSL failure patterns and provides targeted hints:
 |---|---|
 | `0` | Handshake succeeded |
 | `1` | Handshake failed |
+| `2` | Output file could not be opened |
 
 ## Running Tests
 
@@ -138,5 +152,6 @@ app/src/main/java/net/cwnk/ssldebugger/
 ├── HandshakeResult.java      # Immutable result record
 ├── HandshakeStep.java        # Single parsed handshake step
 ├── ResultPrinter.java        # Formats and prints output
+├── TeeOutputStream.java      # Mirrors writes to two output streams simultaneously
 └── TrustAllTrustManager.java # No-op TrustManager for --insecure mode
 ```
