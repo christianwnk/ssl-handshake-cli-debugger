@@ -22,12 +22,12 @@ A Java CLI tool for diagnosing SSL/TLS handshake failures. It connects to a targ
 ./gradlew shadowJar
 ```
 
-The fat JAR is produced at `app/build/libs/app.jar`.
+The fat JAR is produced at `app/build/libs/ssl-handshake-debugger.jar`.
 
 ## Usage
 
 ```
-java -jar app/build/libs/app.jar --host <host> --port <port> [options]
+java -jar app/build/libs/ssl-handshake-debugger.jar --host <host> --port <port> [options]
 ```
 
 | Option | Description |
@@ -44,7 +44,7 @@ java -jar app/build/libs/app.jar --host <host> --port <port> [options]
 
 **Successful handshake:**
 ```bash
-java -jar app/build/libs/app.jar --host example.com --port 443
+java -jar app/build/libs/ssl-handshake-debugger.jar --host example.com --port 443
 ```
 ```
 === TLS Handshake Trace ===
@@ -76,7 +76,7 @@ Chain depth  : 3
 
 **Expired certificate:**
 ```bash
-java -jar app/build/libs/app.jar --host expired.badssl.com --port 443
+java -jar app/build/libs/ssl-handshake-debugger.jar --host expired.badssl.com --port 443
 ```
 ```
 === Summary ===
@@ -88,17 +88,17 @@ Hint    : Use --insecure to skip certificate validation
 
 **Skip certificate validation:**
 ```bash
-java -jar app/build/libs/app.jar --host self-signed.badssl.com --port 443 --insecure
+java -jar app/build/libs/ssl-handshake-debugger.jar --host self-signed.badssl.com --port 443 --insecure
 ```
 
 **Through an HTTP proxy:**
 ```bash
-java -jar app/build/libs/app.jar --host example.com --port 443 --proxy proxy.internal:8080
+java -jar app/build/libs/ssl-handshake-debugger.jar --host example.com --port 443 --proxy proxy.internal:8080
 ```
 
 **Full raw JSSE debug output:**
 ```bash
-java -jar app/build/libs/app.jar --host example.com --port 443 --raw
+java -jar app/build/libs/ssl-handshake-debugger.jar --host example.com --port 443 --raw
 ```
 
 ## Error Classification
