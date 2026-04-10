@@ -26,6 +26,35 @@ class SslDebuggerCliTest {
     }
 
     @Test
+    void unknownCipherSuiteAbortsWithExitCode2() {
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        CommandLine cmd = new CommandLine(new SslDebuggerCli());
+        cmd.setErr(new PrintWriter(err, true));
+
+        int exitCode = cmd.execute("--host", "example.com", "--cipher-suites", "FAKE_CIPHER_SUITE");
+
+        assertEquals(2, exitCode);
+        String errOut = err.toString(StandardCharsets.UTF_8);
+        assertTrue(errOut.contains("FAKE_CIPHER_SUITE"), "Expected invalid suite name in: " + errOut);
+        assertTrue(errOut.contains("not supported"), "Expected 'not supported' in: " + errOut);
+    }
+
+    @Test
+    void multipleUnknownCipherSuitesAllReportedInError() {
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        CommandLine cmd = new CommandLine(new SslDebuggerCli());
+        cmd.setErr(new PrintWriter(err, true));
+
+        int exitCode = cmd.execute("--host", "example.com", "--cipher-suites", "FAKE_ONE,FAKE_TWO");
+
+        assertEquals(2, exitCode);
+        String errOut = err.toString(StandardCharsets.UTF_8);
+        assertTrue(errOut.contains("FAKE_ONE"), "Expected FAKE_ONE in: " + errOut);
+        assertTrue(errOut.contains("FAKE_TWO"), "Expected FAKE_TWO in: " + errOut);
+        assertTrue(errOut.contains("not supported"), "Expected 'not supported' in: " + errOut);
+    }
+
+    @Test
     void shorthandTlsVersionIsNormalized() {
         ByteArrayOutputStream err = new ByteArrayOutputStream();
         CommandLine cmd = new CommandLine(new SslDebuggerCli());

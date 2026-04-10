@@ -11,12 +11,13 @@ import java.io.PrintWriter;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.security.cert.X509Certificate;
+import java.util.List;
 
 public class SslHandshakeProbe {
 
     private static final int TIMEOUT_MS = 10_000;
 
-    public HandshakeResult probe(String host, int port, String proxy, boolean insecure, String tlsVersion) {
+    public HandshakeResult probe(String host, int port, String proxy, boolean insecure, String tlsVersion, List<String> cipherSuites) {
         CapturingTrustManager capturingTm = null;
         try {
             X509TrustManager delegate;
@@ -43,6 +44,9 @@ public class SslHandshakeProbe {
             sslSocket.setSoTimeout(TIMEOUT_MS);
             if (tlsVersion != null) {
                 sslSocket.setEnabledProtocols(new String[]{tlsVersion});
+            }
+            if (cipherSuites != null && !cipherSuites.isEmpty()) {
+                sslSocket.setEnabledCipherSuites(cipherSuites.toArray(String[]::new));
             }
             sslSocket.startHandshake();
 

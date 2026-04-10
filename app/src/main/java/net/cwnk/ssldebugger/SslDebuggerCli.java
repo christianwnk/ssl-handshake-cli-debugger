@@ -16,6 +16,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.Callable;
 
 @Command(
@@ -52,6 +53,15 @@ public class SslDebuggerCli implements Callable<Integer> {
             description = "Force a specific TLS version (e.g. TLSv1.2, TLSv1.3). Shorthand also accepted (e.g. 1.2). Aborts if not supported by the JVM."
     )
     private String tlsVersion;
+
+    @Option(
+            names = {"--cipher-suites"},
+            arity = "1..*",
+            split = ",",
+            paramLabel = "<suite>",
+            description = "Restrict to specific cipher suites (comma-separated or space-separated, e.g. TLS_AES_256_GCM_SHA384,TLS_AES_128_GCM_SHA256). Aborts if any are not supported by the JVM."
+    )
+    private List<String> cipherSuites;
 
     @Option(
             names = {"--output"},
@@ -97,8 +107,22 @@ public class SslDebuggerCli implements Callable<Integer> {
             }
         }
 
+        if (cipherSuites != null && !cipherSuites.isEmpty()) {
+            try {
+                List<String> supported = Arrays.asList(SSLContext.getDefault().getSupportedSSLParameters().getCipherSuites());
+                List<String> unsupported = cipherSuites.stream().filter(cs -> !supported.contains(cs)).toList();
+                if (!unsupported.isEmpty()) {
+                    spec.commandLine().getErr().println("Error: the following cipher suites are not supported by this JVM: " + String.join(", ", unsupported));
+                    return 2;
+                }
+            } catch (NoSuchAlgorithmException e) {
+                spec.commandLine().getErr().println("Error: could not query supported cipher suites: " + e.getMessage());
+                return 2;
+            }
+        }
+
         capture.start();
-        HandshakeResult result = probe.probe(host, port, proxy, insecure, normalizedTlsVersion);
+        HandshakeResult result = probe.probe(host, port, proxy, insecure, normalizedTlsVersion, cipherSuites);
         String rawOutput = capture.stop();
 
         var steps = parser.parse(rawOutput);
