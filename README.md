@@ -8,6 +8,7 @@ A Java CLI tool for diagnosing SSL/TLS handshake failures. It connects to a targ
 - Human-readable summary for both success and failure (with error classification and fix hints)
 - Optional full raw JSSE debug dump (`--raw`)
 - Save output to a file in addition to stdout (`--output`)
+- Force a specific TLS version (`--tls-version`)
 - Skip certificate validation (`--insecure`)
 - HTTP proxy support via CONNECT tunnel (`--proxy`)
 - Works with Java 17+ structured JSSE format and legacy Java 8–11 format
@@ -37,6 +38,7 @@ java -jar app/build/libs/ssl-handshake-debugger.jar --host <host> --port <port> 
 | `--port` | Target port (required) |
 | `--proxy` | HTTP proxy as `host:port` |
 | `--insecure` | Skip certificate validation |
+| `--tls-version <version>` | Force a specific TLS version (e.g. `TLSv1.2`, `TLSv1.3`, or shorthand `1.2`). Aborts with exit code 2 if not supported by the JVM |
 | `--raw` | Also print the full raw JSSE debug stream |
 | `--output [<file>]` | Write output to a file in addition to stdout. If no filename is given, defaults to `ssl-debug-<host>-<timestamp>.txt` |
 | `--help` | Show usage |
@@ -108,6 +110,16 @@ java -jar app/build/libs/ssl-handshake-debugger.jar --host example.com --port 44
 java -jar app/build/libs/ssl-handshake-debugger.jar --host example.com --output result.txt
 ```
 
+**Force TLS 1.2:**
+```bash
+java -jar app/build/libs/ssl-handshake-debugger.jar --host example.com --tls-version TLSv1.2
+```
+
+**Force TLS 1.2 using shorthand:**
+```bash
+java -jar app/build/libs/ssl-handshake-debugger.jar --host example.com --tls-version 1.2
+```
+
 **Save output to a file (auto-generated filename):**
 ```bash
 java -jar app/build/libs/ssl-handshake-debugger.jar --host example.com --output
@@ -133,7 +145,7 @@ The tool recognises common SSL failure patterns and provides targeted hints:
 |---|---|
 | `0` | Handshake succeeded |
 | `1` | Handshake failed |
-| `2` | Output file could not be opened |
+| `2` | Bad argument (output file could not be opened, or TLS version not supported by JVM) |
 
 ## Running Tests
 
