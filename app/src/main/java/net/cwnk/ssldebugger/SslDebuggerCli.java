@@ -2,14 +2,20 @@ package net.cwnk.ssldebugger;
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
+import picocli.CommandLine.Spec;
+
+import javax.net.ssl.SSLContext;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.concurrent.Callable;
 
 @Command(
@@ -19,6 +25,8 @@ import java.util.concurrent.Callable;
         description = "Diagnoses SSL/TLS handshake failures by showing the full handshake trace and a human-readable summary."
 )
 public class SslDebuggerCli implements Callable<Integer> {
+
+    @Spec CommandSpec spec;
 
     private static final String OUTPUT_DEFAULT_SENTINEL = "__default__";
     private static final DateTimeFormatter TIMESTAMP_FMT = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss");
@@ -39,6 +47,13 @@ public class SslDebuggerCli implements Callable<Integer> {
     private boolean raw;
 
     @Option(
+            names = {"--tls-version"},
+            paramLabel = "<version>",
+            description = "Force a specific TLS version (e.g. TLSv1.2, TLSv1.3). Shorthand also accepted (e.g. 1.2). Aborts if not supported by the JVM."
+    )
+    private String tlsVersion;
+
+    @Option(
             names = {"--output"},
             arity = "0..1",
             fallbackValue = OUTPUT_DEFAULT_SENTINEL,
@@ -54,6 +69,21 @@ public class SslDebuggerCli implements Callable<Integer> {
 
     @Override
     public Integer call() {
+        String normalizedTlsVersion = normalizeTlsVersion(tlsVersion);
+        if (normalizedTlsVersion != null) {
+            try {
+                String[] supported = SSLContext.getDefault().getSupportedSSLParameters().getProtocols();
+                if (!Arrays.asList(supported).contains(normalizedTlsVersion)) {
+                    spec.commandLine().getErr().println("Error: TLS version '" + normalizedTlsVersion + "' is not supported by this JVM.");
+                    spec.commandLine().getErr().println("Supported versions: " + String.join(", ", supported));
+                    return 2;
+                }
+            } catch (NoSuchAlgorithmException e) {
+                spec.commandLine().getErr().println("Error: could not query supported TLS versions: " + e.getMessage());
+                return 2;
+            }
+        }
+
         Path resolvedOutput = resolveOutputPath();
 
         if (resolvedOutput != null) {
@@ -62,13 +92,13 @@ public class SslDebuggerCli implements Callable<Integer> {
                 // Validate path is writable before running the probe
                 resolvedOutput.toFile().createNewFile();
             } catch (IOException e) {
-                System.err.println("Error: cannot open output file: " + resolvedOutput + " (" + e.getMessage() + ")");
+                spec.commandLine().getErr().println("Error: cannot open output file: " + resolvedOutput + " (" + e.getMessage() + ")");
                 return 2;
             }
         }
 
         capture.start();
-        HandshakeResult result = probe.probe(host, port, proxy, insecure);
+        HandshakeResult result = probe.probe(host, port, proxy, insecure, normalizedTlsVersion);
         String rawOutput = capture.stop();
 
         var steps = parser.parse(rawOutput);
@@ -78,15 +108,20 @@ public class SslDebuggerCli implements Callable<Integer> {
                  PrintStream teeOut = new PrintStream(new TeeOutputStream(System.out, fos))) {
                 printer.print(result, rawOutput, steps, raw, teeOut);
             } catch (IOException e) {
-                System.err.println("Error: failed to write output file: " + e.getMessage());
+                spec.commandLine().getErr().println("Error: failed to write output file: " + e.getMessage());
                 return 2;
             }
-            System.err.println("Output written to: " + resolvedOutput);
+            spec.commandLine().getErr().println("Output written to: " + resolvedOutput);
         } else {
             printer.print(result, rawOutput, steps, raw, System.out);
         }
 
         return result.success() ? 0 : 1;
+    }
+
+    private String normalizeTlsVersion(String v) {
+        if (v == null) return null;
+        return v.startsWith("TLS") ? v : "TLSv" + v;
     }
 
     private Path resolveOutputPath() {

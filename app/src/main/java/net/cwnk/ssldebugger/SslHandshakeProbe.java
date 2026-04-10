@@ -16,7 +16,7 @@ public class SslHandshakeProbe {
 
     private static final int TIMEOUT_MS = 10_000;
 
-    public HandshakeResult probe(String host, int port, String proxy, boolean insecure) {
+    public HandshakeResult probe(String host, int port, String proxy, boolean insecure, String tlsVersion) {
         CapturingTrustManager capturingTm = null;
         try {
             X509TrustManager delegate;
@@ -41,6 +41,9 @@ public class SslHandshakeProbe {
             }
 
             sslSocket.setSoTimeout(TIMEOUT_MS);
+            if (tlsVersion != null) {
+                sslSocket.setEnabledProtocols(new String[]{tlsVersion});
+            }
             sslSocket.startHandshake();
 
             var session = sslSocket.getSession();
